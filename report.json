@@ -1,0 +1,194 @@
+{
+  "duration": 9954,
+  "repository": {
+    "name": "phase4-test-repo",
+    "commitCount": 5000,
+    "fileCount": 0
+  },
+  "overallScore": 22.46,
+  "summary": {
+    "overallScore": 22.46,
+    "filesAnalyzed": 555,
+    "highFrictionFiles": 9,
+    "mediumFrictionFiles": 105,
+    "lowFrictionFiles": 441,
+    "topHighFrictionModules": [
+      "packages/next/src/server/config-shared.ts",
+      "packages/next/src/server/app-render/app-render.tsx",
+      "packages/next/src/server/app-render/work-unit-async-storage.external.ts",
+      "packages/next/src/server/config.ts",
+      "packages/next/src/server/app-render/types.ts"
+    ]
+  },
+  "topFiles": [
+    {
+      "path": "packages/next/src/server/config-shared.ts",
+      "frictionScore": 93.69,
+      "dependencyImpact": 91.84197287740683,
+      "changeFrequency": 98.10525898353607,
+      "coChangeCoupling": 94.97943793281198,
+      "contributorComplexity": 100,
+      "historicalRisk": 84.07357836698793,
+      "explanation": "packages/next/src/server/config-shared.ts has high change friction because it has a large dependency blast radius, frequent changes, frequent co-change with packages/next/src/server/config-schema.ts, packages/next/src/server/config.test.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Hendrik Liebau: Revert \"[turbopack] Enable CJS tree shaking by default (#96779)\" (#97018); Tobias Koppers: fix(turbopack): support `type: 'text'` in rules, and error on binding imports of non-ESM modules (#96558)."
+    },
+    {
+      "path": "packages/next/src/server/app-render/app-render.tsx",
+      "frictionScore": 88.93,
+      "dependencyImpact": 67.88821839071187,
+      "changeFrequency": 100,
+      "coChangeCoupling": 100,
+      "contributorComplexity": 85.6778434163472,
+      "historicalRisk": 100,
+      "explanation": "packages/next/src/server/app-render/app-render.tsx has high change friction because it has frequent changes, frequent co-change with packages/next/src/server/app-render/work-unit-async-storage.external.ts, packages/next/src/server/request/cache-stages.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Janka Uryga: [PPF] Fix navigation() in prospective runtime prerenders (#98000); David Alexandru Ilie: Fix client component loading span timing (#96455)."
+    },
+    {
+      "path": "packages/next/src/server/app-render/work-unit-async-storage.external.ts",
+      "frictionScore": 80.99,
+      "dependencyImpact": 100,
+      "changeFrequency": 70.35150121899187,
+      "coChangeCoupling": 88.99591364589328,
+      "contributorComplexity": 65.85385709929116,
+      "historicalRisk": 60.14104886149799,
+      "explanation": "packages/next/src/server/app-render/work-unit-async-storage.external.ts has high change friction because it has a large dependency blast radius, frequent changes, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/request/cache-stages.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Janka Uryga: [PPF] Fix navigation() in prospective runtime prerenders (#98000); Janka Uryga: fix: cache miss in App Shell for cached pages with gSP (#95665)."
+    },
+    {
+      "path": "packages/next/src/server/config.ts",
+      "frictionScore": 78.48,
+      "dependencyImpact": 57.72359744023721,
+      "changeFrequency": 87.67265681978652,
+      "coChangeCoupling": 89.88545999886055,
+      "contributorComplexity": 97.27413202663429,
+      "historicalRisk": 76.90558279672058,
+      "explanation": "packages/next/src/server/config.ts has high change friction because it has frequent changes, frequent co-change with packages/next/src/server/config-schema.ts, packages/next/src/server/config-shared.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Joseph: Fix/next info experimental analyze with graph css chunking (#95542); Partha Shankar: fix(config): correctly validate cacheHandlers names (#95358)."
+    },
+    {
+      "path": "packages/next/src/server/app-render/types.ts",
+      "frictionScore": 77.99,
+      "dependencyImpact": 95.42937362833052,
+      "changeFrequency": 70.70761992188123,
+      "coChangeCoupling": 87.77872627554702,
+      "contributorComplexity": 71.06824756145525,
+      "historicalRisk": 46.798832370958465,
+      "explanation": "packages/next/src/server/app-render/types.ts has high change friction because it has a large dependency blast radius, frequent changes, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/app-render/dev-validation-worker-globals.ts, many contributors touching the module. Historical evidence includes: Sebastian \"Sebbie\" Silbermann: Revert \"Remove legacy PPR codepaths\" (#95113); Hendrik Liebau: Revert legacy PPR removal (#90948)."
+    },
+    {
+      "path": "packages/next/src/server/app-render/dynamic-rendering.ts",
+      "frictionScore": 73.02,
+      "dependencyImpact": 71.02593820841355,
+      "changeFrequency": 72.70783576754029,
+      "coChangeCoupling": 87.05036153110429,
+      "contributorComplexity": 71.06824756145525,
+      "historicalRisk": 60.14104886149799,
+      "explanation": "packages/next/src/server/app-render/dynamic-rendering.ts has high change friction because it has a large dependency blast radius, frequent changes, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/app-render/render-in-browser.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Sebastian \"Sebbie\" Silbermann: Revert \"Remove legacy PPR codepaths\" (#95113); Aurora Scharff: Insights: drop irrelevant fix cards from instant errors (#94926)."
+    },
+    {
+      "path": "packages/next/src/server/base-server.ts",
+      "frictionScore": 72.94,
+      "dependencyImpact": 44.917689524762665,
+      "changeFrequency": 81.89422077683096,
+      "coChangeCoupling": 92.4662274051061,
+      "contributorComplexity": 85.6778434163472,
+      "historicalRisk": 79.51965521020806,
+      "explanation": "packages/next/src/server/base-server.ts has high change friction because it has frequent changes, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/app-render/dev-validation-worker-globals.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Hendrik Liebau: Fix stale dev `'use cache'` for cookieless requests and route handlers (#96022); Sam Poder: Revert \"[turbopack] Don't SSR on pages only navigated to through a soft nav (#95539)\" (#96028)."
+    },
+    {
+      "path": "packages/next/src/server/request/params.ts",
+      "frictionScore": 71.25,
+      "dependencyImpact": 75.1001317273812,
+      "changeFrequency": 65.41619177471352,
+      "coChangeCoupling": 86.79004755267688,
+      "contributorComplexity": 68.57972507265686,
+      "historicalRisk": 54.31277903401206,
+      "explanation": "packages/next/src/server/request/params.ts has high change friction because it has a large dependency blast radius, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/app-render/work-unit-async-storage.external.ts, many contributors touching the module. Historical evidence includes: Janka Uryga: [PPF] Fix navigation() in prospective runtime prerenders (#98000); Janka Uryga: fix: cache miss in App Shell for cached pages with gSP (#95665)."
+    },
+    {
+      "path": "packages/next/src/server/app-render/work-async-storage.external.ts",
+      "frictionScore": 70.78,
+      "dependencyImpact": 97.04729238619466,
+      "changeFrequency": 56.3868680853884,
+      "coChangeCoupling": 74.880114579984,
+      "contributorComplexity": 62.8405498546863,
+      "historicalRisk": 42.036789183493966,
+      "explanation": "packages/next/src/server/app-render/work-async-storage.external.ts has high change friction because it has a large dependency blast radius, frequent co-change with packages/next/src/server/app-render/app-render.tsx, packages/next/src/server/app-render/dev-validation-worker-globals.ts, many contributors touching the module. Historical evidence includes: Hendrik Liebau: Build with dev runtimes when `--debug-prerender` is set (#89834); Andrew Clark: Fix: Server refresh() should not purge client cache (#86878)."
+    },
+    {
+      "path": "packages/next/src/server/use-cache/use-cache-wrapper.ts",
+      "frictionScore": 69.73,
+      "dependencyImpact": 40.347063153093195,
+      "changeFrequency": 79.68118106474168,
+      "coChangeCoupling": 91.11141747079759,
+      "contributorComplexity": 77.45014570957824,
+      "historicalRisk": 78.245308539502,
+      "explanation": "packages/next/src/server/use-cache/use-cache-wrapper.ts has high change friction because it has frequent changes, frequent co-change with packages/next/src/server/app-render/manifests-singleton.ts, packages/next/src/server/dev/use-cache-probe-worker.ts, many contributors touching the module, historical risk signals. Historical evidence includes: Josh Story: Fix use cache prerender signal retention (#97476); Sebastian \"Sebbie\" Silbermann: Prefix `'use cache'` debug logs with the full directive (#97037)."
+    }
+  ],
+  "coChangePairs": 88300,
+  "validCoChangePairs": 3063,
+  "strongestCoChanges": [
+    {
+      "source": "packages/next/src/server/config-schema.ts",
+      "target": "packages/next/src/server/config-shared.ts",
+      "count": 159
+    },
+    {
+      "source": "packages/next/src/server/config-shared.ts",
+      "target": "packages/next/src/server/config.ts",
+      "count": 88
+    },
+    {
+      "source": "packages/next/src/server/config-schema.ts",
+      "target": "packages/next/src/server/config.ts",
+      "count": 59
+    },
+    {
+      "source": "packages/next/src/server/base-server.ts",
+      "target": "packages/next/src/server/config-shared.ts",
+      "count": 46
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/app-render/types.ts",
+      "count": 43
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/app-render/work-unit-async-storage.external.ts",
+      "count": 41
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/use-cache/use-cache-wrapper.ts",
+      "count": 41
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/app-render/dynamic-rendering.ts",
+      "count": 38
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/app-render/create-component-tree.tsx",
+      "count": 38
+    },
+    {
+      "source": "packages/next/src/server/app-render/app-render.tsx",
+      "target": "packages/next/src/server/base-server.ts",
+      "count": 36
+    }
+  ],
+  "dependencies": 555,
+  "filesWithDependencies": 376,
+  "totalDependencyEdges": 1587,
+  "averageDependenciesPerFile": 2.8594594594594596,
+  "totalFilesAnalyzed": 555,
+  "distribution": {
+    "min": 5.1,
+    "max": 93.69,
+    "mean": 22.462360360360346,
+    "median": 18.08,
+    "high": 9,
+    "medium": 105,
+    "low": 441
+  },
+  "contributors": 32
+}

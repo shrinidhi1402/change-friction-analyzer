@@ -1,0 +1,90 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String       @id @default(cuid())
+  email        String       @unique
+  name         String
+  password     String
+  repositories Repository[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+}
+
+model Repository {
+  id        String     @id @default(cuid())
+  name      String
+  path      String
+  userId    String
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  analyses  Analysis[]
+  files     File[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([userId])
+}
+
+model Analysis {
+  id           String       @id @default(cuid())
+  repositoryId String
+  repository   Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  overallScore Float
+  summary      Json
+  commitCount  Int
+  fileCount    Int
+  fileMetrics  FileMetric[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([repositoryId])
+}
+
+model File {
+  id           String       @id @default(cuid())
+  repositoryId String
+  repository   Repository   @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  path         String
+  metrics      FileMetric[]
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@unique([repositoryId, path])
+  @@index([repositoryId])
+}
+
+model FileMetric {
+  id         String   @id @default(cuid())
+  analysisId String
+  analysis   Analysis @relation(fields: [analysisId], references: [id], onDelete: Cascade)
+  fileId     String
+  file       File     @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  dependencyImpact      Float
+  changeFrequency       Float
+  coChangeCoupling      Float
+  contributorComplexity Float
+  historicalRisk        Float
+  frictionScore         Float
+  explanation           String
+
+  dependencyCount    Int
+  dependentCount     Int
+  changeCount        Int
+  contributorCount   Int
+  coChangedWith      String[]
+  historicalEvidence String[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([analysisId, fileId])
+  @@index([analysisId])
+  @@index([fileId])
+}

@@ -1,0 +1,21 @@
+{
+  "name": "change-friction-analyzer",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:web": "npm -w apps/web run dev",
+    "dev:api": "npm -w apps/api run dev",
+    "build": "npm -w packages/shared run build && npm -w packages/analyzer run build && npm -w packages/database run build && npm -w apps/api run build && npm -w apps/web run build",
+    "test": "npm -w packages/analyzer run test && npm -w apps/api run test",
+    "lint": "npm -w apps/api run lint && npm -w apps/web run lint"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.4"
+  }
+}
