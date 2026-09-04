@@ -44,48 +44,97 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-100">Change Friction</h1>
-        <p className="mt-1 text-sm text-slate-400">Know what could break before you change the code.</p>
+    <main className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6 text-[#2E282A]">
+      <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-12 gap-8 items-stretch border border-[#E6E1D8] bg-white rounded-2xl p-4 md:p-8 shadow-sm">
         
-        <form onSubmit={onSubmit} className="mt-8 space-y-4">
+        {/* LEFT COLUMN: Compact Product Intro */}
+        <div className="md:col-span-6 bg-[#F4F0EA] border border-[#E6E1D8] rounded-xl p-8 flex flex-col justify-between">
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full rounded-md border border-slate-700 bg-slate-900 px-3 py-2 text-sm focus:border-slate-500 focus:outline-none"
-            />
-          </div>
-          
-          <button
-            type="submit"
-            disabled={busy}
-            className="w-full rounded-md bg-slate-200 px-4 py-2 text-sm font-medium text-slate-950 hover:bg-white disabled:opacity-50"
-          >
-            {busy ? 'Signing in...' : 'Sign in'}
-          </button>
-        </form>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-9 h-9 rounded-lg bg-[#FF6B35] flex items-center justify-center text-white font-bold text-lg shadow-sm">
+                CF
+              </div>
+              <span className="font-bold text-base tracking-tight text-[#2E282A]">Change Friction</span>
+            </div>
 
-        {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+            <h1 className="text-2xl font-bold text-[#2E282A] tracking-tight mb-4">
+              Know what could break before you change code.
+            </h1>
 
-        <p className="mt-6 text-sm text-slate-400">
-          Need an account? <Link href="/register" className="text-slate-200 hover:underline">Register</Link>
-        </p>
+            <p className="text-sm text-[#6B6265] leading-relaxed">
+              Change Friction Analyzer shows you which files are risky to change.
+              It uses code dependencies and Git history to explain where a change may have wider impact.
+            </p>
+          </div>
+
+          <div className="pt-8 border-t border-[#E6E1D8]/70 mt-8">
+            <div className="flex items-center gap-2 text-xs font-medium text-[#6B6265]">
+              <span className="w-2 h-2 rounded-full bg-[#2B8A3E]"></span>
+              <span>Engineering Intelligence Platform</span>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Auth Form */}
+        <div className="md:col-span-6 p-4 md:p-6 flex flex-col justify-center">
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-[#2E282A] tracking-tight">Sign in</h2>
+            <p className="text-xs text-[#6B6265] mt-1">Enter your credentials to access your dashboard</p>
+          </div>
+
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B6265] mb-1.5">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@company.com"
+                required
+                className="w-full rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3.5 py-2.5 text-sm text-[#2E282A] placeholder-[#9E9497] focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#FF6B35] transition-all"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B6265] mb-1.5">
+                Password
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+                className="w-full rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3.5 py-2.5 text-sm text-[#2E282A] placeholder-[#9E9497] focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#FF6B35] transition-all"
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full rounded-lg bg-[#FF6B35] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#E05A2B] transition-colors disabled:opacity-50 mt-2 shadow-sm"
+            >
+              {busy ? 'Signing in...' : 'Sign in'}
+            </button>
+          </form>
+
+          {error && (
+            <div className="mt-4 p-3 rounded-lg border border-[#FFC9C9] bg-[#FFE3E3] text-xs font-medium text-[#EF5B5B]">
+              {error}
+            </div>
+          )}
+
+          <p className="mt-6 text-xs text-[#6B6265] text-center">
+            Need an account?{' '}
+            <Link href="/register" className="font-semibold text-[#FF6B35] hover:text-[#E05A2B] transition-colors">
+              Create an account
+            </Link>
+          </p>
+        </div>
+
       </div>
-    </div>
+    </main>
   );
 }

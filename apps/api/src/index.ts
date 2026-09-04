@@ -11,6 +11,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
+import { generateEngineeringBrief } from './ai/brief.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -487,6 +488,42 @@ app.get('/api/analyses/:id/files/:fileId', requireAuth, async (req: Authenticate
     }
 
     res.json({ file });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error' });
+  }
+});
+
+app.get('/api/analyses/:id/files/:fileId/ai-brief', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const fileId = Array.isArray(req.params.fileId) ? req.params.fileId[0] : req.params.fileId;
+  try {
+    const analysis = await prisma.analysis.findUnique({
+      where: { id },
+      include: { repository: true, fileMetrics: { include: { file: true } } }
+    });
+    if (!analysis) {
+      res.status(404).json({ message: 'Analysis not found.' });
+      return;
+    }
+    if (analysis.repository.userId !== req.user!.id) {
+      res.status(403).json({ message: 'You are not allowed to view this file.' });
+      return;
+    }
+
+    const serialized = serializeDbAnalysis(analysis);
+    const file = serialized.files.find((item: any) => item.path === fileId || item.path.endsWith(`/${fileId}`));
+    if (!file) {
+      res.status(404).json({ message: 'File not found.' });
+      return;
+    }
+
+    try {
+      const brief = await generateEngineeringBrief(file);
+      res.json({ brief });
+    } catch (aiError) {
+      console.error('[AI] Brief generation failed:', aiError);
+      res.status(503).json({ message: 'AI service unavailable.' });
+    }
   } catch (error) {
     res.status(500).json({ message: 'Internal server error' });
   }

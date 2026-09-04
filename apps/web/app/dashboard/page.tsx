@@ -25,15 +25,19 @@ const getSafeError = async (response: Response): Promise<string> => {
 };
 
 function classifyRisk(score: number) {
-  if (score >= 70) return 'High';
-  if (score >= 35) return 'Moderate';
-  return 'Low';
+  if (score >= 70) return 'High Risk';
+  if (score >= 35) return 'Medium Risk';
+  return 'Low Risk';
 }
 
-function scoreColor(score: number) {
-  if (score >= 70) return 'text-red-400';
-  if (score >= 35) return 'text-amber-400';
-  return 'text-green-400';
+function getRiskBadgeStyle(score: number) {
+  if (score >= 70) {
+    return 'bg-[#FFE3E3] text-[#EF5B5B] border-[#FFC9C9]';
+  }
+  if (score >= 35) {
+    return 'bg-[#FFF4E6] text-[#E05A2B] border-[#FFD8A8]';
+  }
+  return 'bg-[#EBFBEE] text-[#2B8A3E] border-[#B2F2BB]';
 }
 
 function formatDate(iso: string) {
@@ -156,7 +160,7 @@ export default function DashboardPage() {
       // Navigate to the analysis page
       router.push(`/analysis/${analysisId}`);
 
-    } catch (err) {
+    } catch {
       setRepoError('Unable to analyze repository. Network or server error.');
     } finally {
       setRepoBusy(false);
@@ -172,113 +176,190 @@ export default function DashboardPage() {
   };
 
   if (isLoading || !token) {
-    return <div className="p-4 text-sm text-slate-500">Loading...</div>;
+    return (
+      <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-6 text-[#6B6265] text-sm">
+        Loading dashboard...
+      </div>
+    );
   }
 
-  return (
-    <main className="min-h-screen bg-[#0c0c0e] px-6 py-10 text-slate-200">
-      <div className="mx-auto max-w-5xl">
-        <header className="mb-12 flex items-center justify-between border-b border-slate-800 pb-4">
-          <div className="flex items-center gap-6">
-            <h1 className="text-lg font-bold text-slate-100">Change Friction</h1>
-            <span className="text-sm font-medium text-slate-400">Dashboard</span>
-          </div>
-          <div className="flex items-center gap-4 text-sm">
-            <span className="text-slate-400">{user?.email}</span>
-            <button onClick={logout} className="text-slate-500 hover:text-slate-300">Logout</button>
-          </div>
-        </header>
+  const displayName = user?.name ? `Hi, ${user.name.split(' ')[0]}` : user?.email;
 
-        <section className="mb-16">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-6">Your repositories</h2>
+  return (
+    <div className="min-h-screen bg-[#FAF8F5] text-[#2E282A]">
+      {/* HEADER */}
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-[#E6E1D8]">
+        <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+            <Link href="/dashboard" className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-[#FF6B35] flex items-center justify-center text-white font-bold text-sm shadow-sm">
+                CF
+              </div>
+              <span className="font-bold text-sm tracking-tight text-[#2E282A]">Change Friction Analyzer</span>
+            </Link>
+            <span className="text-xs font-semibold uppercase tracking-wider text-[#6B6265] border-l border-[#E6E1D8] pl-6">
+              Dashboard
+            </span>
+          </div>
+
+          <div className="flex items-center gap-5 text-sm">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-full bg-[#F4F0EA] border border-[#E6E1D8] flex items-center justify-center text-xs font-bold text-[#2E282A]">
+                {(user?.name || user?.email || 'U')[0].toUpperCase()}
+              </div>
+              <span className="font-semibold text-xs text-[#2E282A]">{displayName}</span>
+            </div>
+            <button
+              onClick={logout}
+              className="text-xs font-medium text-[#6B6265] hover:text-[#2E282A] transition-colors"
+            >
+              Logout
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* MAIN CONTAINER */}
+      <main className="mx-auto max-w-6xl px-6 py-10">
+        
+        {/* DESKTOP SIDE-BY-SIDE LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {deleteError && <p className="mb-4 text-sm text-red-400">{deleteError}</p>}
-          
-          <div className="space-y-4">
-            {repositories.length === 0 && (
-              <p className="text-sm text-slate-500">No repositories analyzed yet.</p>
+          {/* LEFT SIDE: ANALYZE A REPOSITORY */}
+          <div className="lg:col-span-5 bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm sticky top-24">
+            <div className="mb-6">
+              <h2 className="text-lg font-bold text-[#2E282A] tracking-tight">Analyze a repository</h2>
+              <p className="text-xs text-[#6B6265] mt-1.5 leading-relaxed">
+                Paste a public GitHub repository URL to find files that may be risky to change.
+              </p>
+            </div>
+
+            <form onSubmit={onAnalyze} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold uppercase tracking-wider text-[#6B6265] mb-1.5">
+                  GitHub Repository URL
+                </label>
+                <input
+                  type="url"
+                  value={repoUrl}
+                  onChange={(e) => setRepoUrl(e.target.value)}
+                  placeholder="https://github.com/expressjs/express"
+                  required
+                  disabled={repoBusy}
+                  className="w-full rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3.5 py-2.5 text-sm text-[#2E282A] placeholder-[#9E9497] focus:border-[#FF6B35] focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#FF6B35] transition-all"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={repoBusy || !repoUrl}
+                className="w-full rounded-lg bg-[#FF6B35] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#E05A2B] transition-colors disabled:opacity-50 shadow-sm"
+              >
+                {repoBusy ? 'Analyzing repository...' : 'Analyze repository'}
+              </button>
+
+              {analyzeState && (
+                <div className="p-3 rounded-lg bg-[#F4F0EA] border border-[#E6E1D8] text-xs font-medium text-[#2E282A] flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-[#FF6B35] animate-pulse"></span>
+                  <span>{analyzeState}</span>
+                </div>
+              )}
+
+              {repoError && (
+                <div className="p-3 rounded-lg border border-[#FFC9C9] bg-[#FFE3E3] text-xs font-medium text-[#EF5B5B]">
+                  {repoError}
+                </div>
+              )}
+            </form>
+          </div>
+
+          {/* RIGHT SIDE: YOUR REPOSITORIES */}
+          <div className="lg:col-span-7 space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-semibold uppercase tracking-wider text-[#6B6265]">
+                Your repositories ({repositories.length})
+              </h2>
+            </div>
+
+            {deleteError && (
+              <div className="p-3 rounded-lg border border-[#FFC9C9] bg-[#FFE3E3] text-xs font-medium text-[#EF5B5B]">
+                {deleteError}
+              </div>
             )}
+
+            {repositories.length === 0 ? (
+              <div className="bg-white border border-[#E6E1D8] rounded-2xl p-8 text-center">
+                <p className="text-sm font-medium text-[#6B6265]">No repositories analyzed yet.</p>
+                <p className="text-xs text-[#9E9497] mt-1">Paste a GitHub URL on the left to start analyzing.</p>
+              </div>
+            ) : null}
+
             {repositories.map(repo => {
               const latestAnalysis = repo.analyses?.[0];
               return (
-                <div key={repo.id} className="flex flex-col sm:flex-row sm:items-center justify-between border border-slate-800 bg-[#141416] p-4 rounded-md">
-                  <div className="mb-4 sm:mb-0">
-                    <h3 className="font-semibold text-slate-200">{repo.name}</h3>
-                    <p className="text-xs text-slate-500 mt-1">{repo.path.replace('https://', '')}</p>
-                    
-                    {latestAnalysis ? (
-                      <div className="mt-3 text-sm">
-                        <span className={scoreColor(latestAnalysis.score)}>{classifyRisk(latestAnalysis.score)}</span>
-                        <span className="text-slate-500 mx-2">·</span>
-                        <span className="font-medium">{Math.round(latestAnalysis.score)}</span>
-                        <p className="text-xs text-slate-500 mt-1">Last analyzed: {formatDate(latestAnalysis.createdAt)}</p>
-                      </div>
-                    ) : (
-                      <p className="text-sm mt-3 text-slate-500">Not analyzed yet</p>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-center gap-3">
-                    {analyzingRepoId === repo.id ? (
-                      <span className="text-sm text-slate-400">Analyzing...</span>
-                    ) : (
-                      <>
-                        {latestAnalysis ? (
-                          <Link href={`/analysis/${latestAnalysis.id}`} className="rounded border border-slate-700 px-3 py-1.5 text-sm hover:bg-slate-800 transition-colors">
-                            Open analysis
-                          </Link>
-                        ) : (
-                          <button onClick={() => onAnalyzeExisting(repo.id, repo.path)} className="rounded bg-slate-200 px-3 py-1.5 text-sm font-medium text-slate-950 hover:bg-white transition-colors">
-                            Analyze
+                <div key={repo.id} className="bg-white border border-[#E6E1D8] rounded-xl p-5 shadow-sm hover:border-[#D4A5A5] transition-all">
+                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-base text-[#2E282A]">{repo.name}</h3>
+                      <p className="text-xs text-[#6B6265] mt-0.5 truncate max-w-sm" title={repo.path}>
+                        {repo.path.replace('https://', '')}
+                      </p>
+
+                      {latestAnalysis ? (
+                        <div className="mt-3 flex items-center gap-3">
+                          <span className={`px-2.5 py-0.5 rounded-md border text-xs font-semibold uppercase ${getRiskBadgeStyle(latestAnalysis.score)}`}>
+                            {classifyRisk(latestAnalysis.score)}
+                          </span>
+                          <span className="text-xs font-mono font-bold text-[#2E282A]">
+                            Score: {Math.round(latestAnalysis.score)}<span className="text-[#9E9497] font-normal">/100</span>
+                          </span>
+                          <span className="text-xs text-[#9E9497]">
+                            · {formatDate(latestAnalysis.createdAt)}
+                          </span>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[#9E9497] mt-3 italic">Not analyzed yet</p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0 self-end sm:self-start">
+                      {analyzingRepoId === repo.id ? (
+                        <span className="text-xs font-medium text-[#FF6B35]">Analyzing...</span>
+                      ) : (
+                        <>
+                          {latestAnalysis ? (
+                            <Link
+                              href={`/analysis/${latestAnalysis.id}`}
+                              className="rounded-lg border border-[#E6E1D8] bg-[#FAF8F5] px-3.5 py-1.5 text-xs font-semibold text-[#2E282A] hover:bg-white hover:border-[#FF6B35] hover:text-[#FF6B35] transition-colors"
+                            >
+                              Open analysis
+                            </Link>
+                          ) : (
+                            <button
+                              onClick={() => onAnalyzeExisting(repo.id, repo.path)}
+                              className="rounded-lg bg-[#FF6B35] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#E05A2B] transition-colors"
+                            >
+                              Analyze
+                            </button>
+                          )}
+                          <button
+                            onClick={() => onDelete(repo.id, repo.name)}
+                            disabled={deletingId === repo.id}
+                            className="rounded-lg border border-[#E6E1D8] px-3 py-1.5 text-xs font-medium text-[#6B6265] hover:text-[#EF5B5B] hover:border-[#FFC9C9] transition-colors disabled:opacity-50"
+                          >
+                            Delete
                           </button>
-                        )}
-                        <button 
-                          onClick={() => onDelete(repo.id, repo.name)} 
-                          disabled={deletingId === repo.id}
-                          className="text-sm text-slate-500 hover:text-red-400 transition-colors disabled:opacity-50"
-                        >
-                          Delete
-                        </button>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
               );
             })}
           </div>
-        </section>
 
-        <section className="border-t border-slate-800 pt-12">
-          <h2 className="text-lg font-semibold text-slate-100 mb-2">Analyze a repository</h2>
-          <p className="text-sm text-slate-400 mb-6 max-w-xl">
-            Paste a public GitHub repository URL to find code that is more likely to cause unexpected impact when changed.
-          </p>
-
-          <form onSubmit={onAnalyze} className="max-w-2xl">
-            <div className="flex gap-3">
-              <input
-                type="url"
-                value={repoUrl}
-                onChange={(e) => setRepoUrl(e.target.value)}
-                placeholder="https://github.com/..."
-                required
-                disabled={repoBusy}
-                className="flex-1 rounded-md border border-slate-700 bg-[#141416] px-4 py-2 text-sm focus:border-slate-500 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={repoBusy || !repoUrl}
-                className="rounded-md bg-slate-200 px-5 py-2 text-sm font-medium text-slate-950 hover:bg-white disabled:opacity-50"
-              >
-                Analyze repository
-              </button>
-            </div>
-            
-            {analyzeState && <p className="mt-4 text-sm text-slate-400">{analyzeState}</p>}
-            {repoError && <p className="mt-4 text-sm text-red-400">{repoError}</p>}
-          </form>
-        </section>
-      </div>
-    </main>
+        </div>
+      </main>
+    </div>
   );
 }
