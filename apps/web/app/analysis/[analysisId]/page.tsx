@@ -42,6 +42,7 @@ type AnalysisResponse = {
     mediumFrictionFiles: number;
     lowFrictionFiles: number;
     topHighFrictionModules: string[];
+    languages?: Record<string, number>;
   };
   dependencies: Array<{ source: string; dependencies: string[] }>;
   cochanges: Array<{ source: string; target: string; count: number }>;
@@ -84,12 +85,19 @@ export default function AnalysisPage({ params }: { params: { analysisId: string 
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState('');
 
+  const [showAllDependents, setShowAllDependents] = useState(false);
+  const [showAllDependencies, setShowAllDependencies] = useState(false);
+  const [showAllCoChanges, setShowAllCoChanges] = useState(false);
+
   const selectedFileParam = searchParams.get('file');
 
   useEffect(() => {
     setAiBrief(null);
     setAiLoading(false);
     setAiError('');
+    setShowAllDependents(false);
+    setShowAllDependencies(false);
+    setShowAllCoChanges(false);
   }, [selectedFileParam]);
 
   useEffect(() => {
@@ -195,12 +203,70 @@ export default function AnalysisPage({ params }: { params: { analysisId: string 
 
   // View: File Detail
   if (selectedFile) {
-    const dependentFiles = analysis.dependencies
-      .filter(d => d.dependencies.includes(selectedFile.path))
-      .map(d => analysis.files.find(f => f.path === d.source))
-      .filter((f): f is FileResult => Boolean(f))
-      .sort((a, b) => b.metrics.frictionScore - a.metrics.frictionScore)
-      .slice(0, 5); // top 5
+    // 1. Direct Dependents: Files that import or depend on the selected file
+    const dependentPaths = new Set<string>();
+    const allDirectDependents: Array<{ path: string; file?: FileResult; score?: number }> = [];
+    for (const d of analysis.dependencies || []) {
+      if (d.dependencies && d.dependencies.includes(selectedFile.path) && !dependentPaths.has(d.source)) {
+        dependentPaths.add(d.source);
+        const f = analysis.files.find(file => file.path === d.source);
+        allDirectDependents.push({
+          path: d.source,
+          file: f,
+          score: f?.metrics?.frictionScore
+        });
+      }
+    }
+    allDirectDependents.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+
+    // 2. Direct Dependencies: Files imported or used by the selected file
+    const directDepEntry = (analysis.dependencies || []).find(d => d.source === selectedFile.path);
+    const rawDepPaths = directDepEntry?.dependencies || [];
+    const allDirectDependencies: Array<{ path: string; file?: FileResult; score?: number }> = [];
+    const seenDepPaths = new Set<string>();
+    for (const p of rawDepPaths) {
+      if (!seenDepPaths.has(p)) {
+        seenDepPaths.add(p);
+        const f = analysis.files.find(file => file.path === p);
+        allDirectDependencies.push({
+          path: p,
+          file: f,
+          score: f?.metrics?.frictionScore
+        });
+      }
+    }
+    allDirectDependencies.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
+
+    // 3. Historical Co-Changes: Files that historically changed together with the selected file
+    const coChangeCounts = new Map<string, number>();
+    for (const c of (analysis.cochanges || [])) {
+      if (c.source === selectedFile.path && c.target && c.target !== selectedFile.path) {
+        coChangeCounts.set(c.target, Math.max(coChangeCounts.get(c.target) ?? 0, c.count));
+      } else if (c.target === selectedFile.path && c.source && c.source !== selectedFile.path) {
+        coChangeCounts.set(c.source, Math.max(coChangeCounts.get(c.source) ?? 0, c.count));
+      }
+    }
+    for (const p of (selectedFile.coChangedWith || [])) {
+      if (p !== selectedFile.path && !coChangeCounts.has(p)) {
+        coChangeCounts.set(p, 1);
+      }
+    }
+    const allHistoricalCoChanges: Array<{ path: string; count: number; file?: FileResult; score?: number }> = [];
+    for (const [p, count] of coChangeCounts.entries()) {
+      const f = analysis.files.find(file => file.path === p);
+      allHistoricalCoChanges.push({
+        path: p,
+        count,
+        file: f,
+        score: f?.metrics?.frictionScore
+      });
+    }
+    allHistoricalCoChanges.sort((a, b) => b.count - a.count || ((b.score ?? -1) - (a.score ?? -1)));
+
+    const visibleDependents = showAllDependents ? allDirectDependents : allDirectDependents.slice(0, 5);
+    const visibleDependencies = showAllDependencies ? allDirectDependencies : allDirectDependencies.slice(0, 5);
+    const visibleCoChanges = showAllCoChanges ? allHistoricalCoChanges : allHistoricalCoChanges.slice(0, 5);
+
 
     let matterReason = '';
     if (selectedFile.dependentCount > 0 && selectedFile.changeCount > 0) {
@@ -292,101 +358,237 @@ export default function AnalysisPage({ params }: { params: { analysisId: string 
           </div>
 
           {/* DECISION AREA */}
-          <div className="grid gap-8 md:grid-cols-2 mb-12">
-            <div className="space-y-8">
-              {/* WHY THIS MATTERS */}
-              <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm">
-                <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-3">Why this matters</h2>
-                <p className="text-sm text-[#2E282A] leading-relaxed mb-3">
-                  {matterReason}
-                </p>
-                <p className="text-xs text-[#6B6265] italic">
-                  {evidenceSentence}
-                </p>
+          <div className="grid gap-8 md:grid-cols-2 mb-10">
+            {/* WHY THIS MATTERS */}
+            <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-3">Why this matters</h2>
+              <p className="text-sm text-[#2E282A] leading-relaxed mb-3">
+                {matterReason}
+              </p>
+              <p className="text-xs text-[#6B6265] italic">
+                {evidenceSentence}
+              </p>
 
-                {aiBrief?.whyItMatters && (
-                  <div className="mt-5 pt-4 border-t border-[#E6E1D8]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI interpretation</span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
-                    </div>
-                    <p className="text-xs text-[#6B6265] leading-relaxed">
-                      {aiBrief.whyItMatters}
-                    </p>
+              {aiBrief?.whyItMatters && (
+                <div className="mt-5 pt-4 border-t border-[#E6E1D8]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI interpretation</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
                   </div>
-                )}
-              </section>
+                  <p className="text-xs text-[#6B6265] leading-relaxed">
+                    {aiBrief.whyItMatters}
+                  </p>
+                </div>
+              )}
+            </section>
 
-              {/* BEFORE YOU CHANGE THIS FILE */}
-              <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm">
-                <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-4">Before you change this file</h2>
-                <ul className="space-y-2.5 text-xs text-[#2E282A]">
-                  {selectedFile.dependentCount > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Review {selectedFile.dependentCount} dependent modules before merging</li>}
-                  {selectedFile.changeCount > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Check recent Git history for context on frequent changes</li>}
-                  {selectedFile.coChangedWith.length > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Coordinate with relevant co-changed files</li>}
-                  <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Run all relevant unit and integration tests</li>
-                </ul>
+            {/* BEFORE YOU CHANGE THIS FILE */}
+            <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm">
+              <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-4">Before you change this file</h2>
+              <ul className="space-y-2.5 text-xs text-[#2E282A]">
+                {selectedFile.dependentCount > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Review {selectedFile.dependentCount} dependent modules before merging</li>}
+                {selectedFile.changeCount > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Check recent Git history for context on frequent changes</li>}
+                {allHistoricalCoChanges.length > 0 && <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Review {allHistoricalCoChanges.length} historical co-change relations</li>}
+                <li className="flex items-start gap-2.5"><span className="text-[#2B8A3E] font-bold">✓</span> Run all relevant unit and integration tests</li>
+              </ul>
 
-                {aiBrief?.beforeYouChangeIt && aiBrief.beforeYouChangeIt.length > 0 && (
-                  <div className="mt-5 pt-4 border-t border-[#E6E1D8]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI recommendations</span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
-                    </div>
-                    <ul className="space-y-2 text-xs text-[#6B6265]">
-                      {aiBrief.beforeYouChangeIt.map((rec, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-[#FF6B35] font-bold">•</span>
-                          <span>{rec}</span>
-                        </li>
-                      ))}
-                    </ul>
+              {aiBrief?.beforeYouChangeIt && aiBrief.beforeYouChangeIt.length > 0 && (
+                <div className="mt-5 pt-4 border-t border-[#E6E1D8]">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI recommendations</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
                   </div>
-                )}
-              </section>
+                  <ul className="space-y-2 text-xs text-[#6B6265]">
+                    {aiBrief.beforeYouChangeIt.map((rec, i) => (
+                      <li key={i} className="flex items-start gap-2">
+                        <span className="text-[#FF6B35] font-bold">•</span>
+                        <span>{rec}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* CHANGE IMPACT */}
+          <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 md:p-8 shadow-sm mb-12">
+            <div className="mb-6">
+              <h2 className="text-base font-bold text-[#2E282A] tracking-tight">Change Impact</h2>
+              <p className="text-xs text-[#6B6265] mt-1 max-w-2xl leading-relaxed">
+                Overview of modules and files that could be affected if you modify this file, based on direct code architecture and historical commit patterns.
+              </p>
             </div>
 
-            <div className="space-y-8">
-              {/* WHAT COULD BE AFFECTED */}
-              <section className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm">
-                <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-4">What could be affected?</h2>
-                {dependentFiles.length > 0 ? (
-                  <div className="space-y-3">
-                    <p className="text-xs text-[#6B6265] mb-3">Showing {dependentFiles.length} of {selectedFile.dependentCount} affected modules</p>
-                    <ul className="space-y-2">
-                      {dependentFiles.map(f => (
-                        <li key={f.path} className="flex justify-between items-center border border-[#E6E1D8] rounded-lg p-3 bg-[#FAF8F5]">
-                          <span className="text-xs font-medium text-[#2E282A] truncate mr-4" title={f.path}>{f.path}</span>
-                          <span className={`text-[10px] px-2 py-0.5 rounded border font-semibold uppercase shrink-0 ${scoreBadgeStyle(f.metrics.frictionScore)}`}>
-                            {classifyRisk(f.metrics.frictionScore)} · {Math.round(f.metrics.frictionScore)}
-                          </span>
+            <div className="grid gap-6 md:grid-cols-3">
+              {/* 1. DIRECT DEPENDENTS */}
+              <div className="flex flex-col rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-[#2E282A] uppercase tracking-wider">Direct Dependents</span>
+                  <span className="text-[11px] font-semibold text-[#6B6265] bg-white border border-[#E6E1D8] px-2 py-0.5 rounded-full">
+                    {allDirectDependents.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#6B6265] mb-3 leading-snug">
+                  Files that import or depend on this file.
+                </p>
+                {allDirectDependents.length > 0 ? (
+                  <div className="space-y-2 flex-1">
+                    <ul className="space-y-1.5">
+                      {visibleDependents.map(item => (
+                        <li key={item.path} className="flex justify-between items-center border border-[#E6E1D8] rounded-lg p-2 bg-white hover:border-[#D6D0C5] transition-colors">
+                          <button
+                            onClick={() => handleSelectFile(item.path)}
+                            className="text-xs font-mono text-[#2E282A] truncate mr-2 text-left hover:text-[#FF6B35] transition-colors"
+                            title={item.path}
+                          >
+                            {item.path}
+                          </button>
+                          {item.score !== undefined && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase shrink-0 ${scoreBadgeStyle(item.score)}`}>
+                              {classifyRisk(item.score)} · {Math.round(item.score)}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
+                    {allDirectDependents.length > 5 && (
+                      <button
+                        onClick={() => setShowAllDependents(!showAllDependents)}
+                        className="text-[11px] font-semibold text-[#FF6B35] hover:text-[#E05A2B] pt-1 transition-colors"
+                      >
+                        {showAllDependents ? 'Show fewer' : `View all ${allDirectDependents.length} files`}
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <p className="text-xs text-[#6B6265] italic border border-[#E6E1D8] rounded-lg p-4 bg-[#FAF8F5]">No direct dependents found.</p>
+                  <div className="flex-1 flex items-center justify-center p-4 border border-dashed border-[#E6E1D8] rounded-lg bg-white/50 text-center">
+                    <p className="text-xs text-[#9E9497] italic">No data available</p>
+                  </div>
                 )}
+              </div>
 
-                {aiBrief?.whatCouldBeAffected && aiBrief.whatCouldBeAffected.length > 0 && (
-                  <div className="mt-5 pt-4 border-t border-[#E6E1D8]">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI risk implications</span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
-                    </div>
-                    <ul className="space-y-2 text-xs text-[#6B6265]">
-                      {aiBrief.whatCouldBeAffected.map((item, i) => (
-                        <li key={i} className="flex items-start gap-2">
-                          <span className="text-[#FF6B35] font-bold">•</span>
-                          <span>{item}</span>
+              {/* 2. DIRECT DEPENDENCIES */}
+              <div className="flex flex-col rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-[#2E282A] uppercase tracking-wider">Direct Dependencies</span>
+                  <span className="text-[11px] font-semibold text-[#6B6265] bg-white border border-[#E6E1D8] px-2 py-0.5 rounded-full">
+                    {allDirectDependencies.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#6B6265] mb-3 leading-snug">
+                  Files imported or used by this file.
+                </p>
+                {allDirectDependencies.length > 0 ? (
+                  <div className="space-y-2 flex-1">
+                    <ul className="space-y-1.5">
+                      {visibleDependencies.map(item => (
+                        <li key={item.path} className="flex justify-between items-center border border-[#E6E1D8] rounded-lg p-2 bg-white hover:border-[#D6D0C5] transition-colors">
+                          <button
+                            onClick={() => handleSelectFile(item.path)}
+                            className="text-xs font-mono text-[#2E282A] truncate mr-2 text-left hover:text-[#FF6B35] transition-colors"
+                            title={item.path}
+                          >
+                            {item.path}
+                          </button>
+                          {item.score !== undefined && (
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase shrink-0 ${scoreBadgeStyle(item.score)}`}>
+                              {classifyRisk(item.score)} · {Math.round(item.score)}
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
+                    {allDirectDependencies.length > 5 && (
+                      <button
+                        onClick={() => setShowAllDependencies(!showAllDependencies)}
+                        className="text-[11px] font-semibold text-[#FF6B35] hover:text-[#E05A2B] pt-1 transition-colors"
+                      >
+                        {showAllDependencies ? 'Show fewer' : `View all ${allDirectDependencies.length} files`}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-4 border border-dashed border-[#E6E1D8] rounded-lg bg-white/50 text-center">
+                    <p className="text-xs text-[#9E9497] italic">No data available</p>
                   </div>
                 )}
-              </section>
+              </div>
+
+              {/* 3. HISTORICAL CO-CHANGES */}
+              <div className="flex flex-col rounded-xl border border-[#E6E1D8] bg-[#FAF8F5]/60 p-4">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-xs font-bold text-[#2E282A] uppercase tracking-wider">Historical Co-Changes</span>
+                  <span className="text-[11px] font-semibold text-[#6B6265] bg-white border border-[#E6E1D8] px-2 py-0.5 rounded-full">
+                    {allHistoricalCoChanges.length}
+                  </span>
+                </div>
+                <p className="text-[11px] text-[#6B6265] mb-3 leading-snug">
+                  Files historically changed together in Git history.
+                </p>
+                {allHistoricalCoChanges.length > 0 ? (
+                  <div className="space-y-2 flex-1">
+                    <ul className="space-y-1.5">
+                      {visibleCoChanges.map(item => (
+                        <li key={item.path} className="flex justify-between items-center border border-[#E6E1D8] rounded-lg p-2 bg-white hover:border-[#D6D0C5] transition-colors">
+                          <button
+                            onClick={() => handleSelectFile(item.path)}
+                            className="text-xs font-mono text-[#2E282A] truncate mr-2 text-left hover:text-[#FF6B35] transition-colors"
+                            title={item.path}
+                          >
+                            {item.path}
+                          </button>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265] font-mono">
+                              {item.count} co-{item.count === 1 ? 'change' : 'changes'}
+                            </span>
+                            {item.score !== undefined && (
+                              <span className={`text-[10px] px-1.5 py-0.5 rounded border font-semibold uppercase ${scoreBadgeStyle(item.score)}`}>
+                                {classifyRisk(item.score)} · {Math.round(item.score)}
+                              </span>
+                            )}
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                    {allHistoricalCoChanges.length > 5 && (
+                      <button
+                        onClick={() => setShowAllCoChanges(!showAllCoChanges)}
+                        className="text-[11px] font-semibold text-[#FF6B35] hover:text-[#E05A2B] pt-1 transition-colors"
+                      >
+                        {showAllCoChanges ? 'Show fewer' : `View all ${allHistoricalCoChanges.length} files`}
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="flex-1 flex items-center justify-center p-4 border border-dashed border-[#E6E1D8] rounded-lg bg-white/50 text-center">
+                    <p className="text-xs text-[#9E9497] italic">No data available</p>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+
+            {aiBrief?.whatCouldBeAffected && aiBrief.whatCouldBeAffected.length > 0 && (
+              <div className="mt-8 pt-5 border-t border-[#E6E1D8]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-xs font-semibold text-[#2E282A] uppercase tracking-wider">AI risk implications</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-[#E6E1D8] bg-[#F4F0EA] text-[#6B6265]">AI-generated locally</span>
+                </div>
+                <ul className="space-y-2 text-xs text-[#6B6265]">
+                  {aiBrief.whatCouldBeAffected.map((item, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="text-[#FF6B35] font-bold">•</span>
+                      <span>{item}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            <div className="mt-6 pt-4 border-t border-[#F0EDE8] flex items-center justify-between text-[11px] text-[#9E9497]">
+              <span>* Historical co-change denotes files committed together in past history, not a code dependency. Modifying this file does not guarantee related files will change.</span>
+            </div>
+          </section>
 
           {/* EVIDENCE AREA */}
           <div className="grid gap-8 md:grid-cols-2 mb-12">
@@ -505,6 +707,75 @@ export default function AnalysisPage({ params }: { params: { analysisId: string 
             Most of the repository is relatively stable, but <strong className="text-[#2E282A]">{overview.highFrictionFiles} files</strong> have high change friction and <strong className="text-[#2E282A]">{overview.mediumFrictionFiles} files</strong> have moderate friction. These files should be reviewed carefully before making changes.
           </p>
         </div>
+
+        {/* LANGUAGE BREAKDOWN */}
+        {(() => {
+          // Prefer server-computed language stats; fall back to deriving from file extensions
+          const langMap: Record<string, number> = (() => {
+            if (overview.languages && Object.keys(overview.languages).length > 0) {
+              return overview.languages;
+            }
+            // Fallback: infer from analyzed file paths using extension map
+            const extMap: Record<string, string> = {
+              '.ts': 'TypeScript', '.tsx': 'TypeScript',
+              '.js': 'JavaScript', '.jsx': 'JavaScript', '.mjs': 'JavaScript', '.cjs': 'JavaScript',
+              '.py': 'Python',
+              '.java': 'Java',
+              '.go': 'Go',
+              '.rs': 'Rust',
+              '.c': 'C', '.h': 'C',
+              '.cpp': 'C++', '.cc': 'C++', '.cxx': 'C++', '.hpp': 'C++',
+            };
+            const acc: Record<string, number> = {};
+            for (const f of analysis.files) {
+              const ext = '.' + (f.path.split('.').pop()?.toLowerCase() ?? '');
+              const lang = extMap[ext] ?? 'Other';
+              acc[lang] = (acc[lang] ?? 0) + 1;
+            }
+            return acc;
+          })();
+
+          const total = Object.values(langMap).reduce((s, n) => s + n, 0);
+          if (total === 0) return null;
+
+          // Sort by count descending
+          const entries = Object.entries(langMap).sort((a, b) => b[1] - a[1]);
+
+          // Distinct bar colours (rotate through palette)
+          const palette = [
+            '#FF6B35', '#4C9BE8', '#2B8A3E', '#9B59B6', '#E05A2B',
+            '#0891B2', '#D97706', '#DC2626', '#059669', '#7C3AED',
+          ];
+
+          return (
+            <div className="bg-white border border-[#E6E1D8] rounded-2xl p-6 shadow-sm mb-10">
+              <h2 className="text-xs font-semibold text-[#6B6265] uppercase tracking-wider mb-5">Language breakdown</h2>
+              <div className="space-y-3">
+                {entries.map(([lang, count], i) => {
+                  const pct = total > 0 ? (count / total) * 100 : 0;
+                  const color = palette[i % palette.length];
+                  return (
+                    <div key={lang}>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-xs font-semibold text-[#2E282A]">{lang}</span>
+                        <span className="text-xs text-[#6B6265] tabular-nums">
+                          {count.toLocaleString()} {count === 1 ? 'file' : 'files'} &middot; {pct.toFixed(1)}%
+                        </span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-[#F0EDE8] overflow-hidden">
+                        <div
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{ width: `${pct}%`, backgroundColor: color }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-[11px] text-[#9E9497]">{total.toLocaleString()} source files analyzed</p>
+            </div>
+          );
+        })()}
 
         {/* FILES LIST */}
         <section>

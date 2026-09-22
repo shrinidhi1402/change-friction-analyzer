@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { config } from './config.js';
 import { createToken, hashPassword, comparePassword } from './auth.js';
 import { requireAuth, type AuthenticatedRequest } from './middleware.js';
-import { analyzeRepository } from '../../../packages/analyzer/src/index.js';
+import { analyzeRepository } from '@change-friction/analyzer';
 import { prisma } from '@change-friction/database';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -12,11 +12,28 @@ import path from 'node:path';
 import os from 'node:os';
 import fs from 'node:fs';
 import { generateEngineeringBrief } from './ai/brief.js';
+import { performance } from 'node:perf_hooks';
 
 const execFileAsync = promisify(execFile);
 
 const app = express();
-app.use(cors());
+
+const frontendOrigins = process.env.FRONTEND_URL
+  ? process.env.FRONTEND_URL.split(',').map((url) => url.trim().replace(/\/$/, ''))
+  : [];
+
+app.use(cors({
+  origin: frontendOrigins.length > 0
+    ? (origin, callback) => {
+        if (!origin || frontendOrigins.includes(origin) || origin === 'http://localhost:3000') {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      }
+    : true,
+  credentials: true,
+}));
 app.use(express.json());
 
 const registerSchema = z.object({
@@ -80,7 +97,8 @@ const serializeDbAnalysis = (analysis: any) => {
       highFrictionFiles: summary.highFrictionFiles ?? 0,
       mediumFrictionFiles: summary.mediumFrictionFiles ?? 0,
       lowFrictionFiles: summary.lowFrictionFiles ?? 0,
-      topHighFrictionModules: summary.topHighFrictionModules ?? []
+      topHighFrictionModules: summary.topHighFrictionModules ?? [],
+      languages: (summary.languages ?? {}) as Record<string, number>
     },
     dependencies,
     cochanges,
@@ -268,10 +286,15 @@ app.delete('/api/repositories/:id', requireAuth, async (req: AuthenticatedReques
 });
 
 app.post('/api/repositories/:id/analyze', requireAuth, async (req: AuthenticatedRequest, res) => {
+  const reqStartTime = performance.now();
   const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
-  console.log(`[Analyze] Request received for repository ID: ${id}`);
+  console.log(`[Analyze Timing] request received - id: ${id}`);
 
+  const repoLookupStart = performance.now();
   const repo = await getOwnedRepository(req, id);
+  const repoLookupElapsed = performance.now() - repoLookupStart;
+  console.log(`[Analyze Timing] repository lookup - ${repoLookupElapsed.toFixed(1)}ms`);
+
   if (!repo) {
     console.log(`[Analyze] Repository not found or not owned: ${id}`);
     res.status(404).json({ message: 'Repository not found.' });
@@ -285,59 +308,105 @@ app.post('/api/repositories/:id/analyze', requireAuth, async (req: Authenticated
     console.log(`[Analyze] URL detected: ${repo.path} (isGitHubUrl: ${isGitHubUrl})`);
 
     if (isGitHubUrl) {
-      tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'change-friction-clone-'));
-      console.log(`[Analyze] Clone started to ${tmpDir}`);
-      // Use depth 5000 for meaningful git history while keeping clone relatively fast
+      const isWindows = os.platform() === 'win32';
+      let baseTmpDir = os.tmpdir();
+      
+      if (isWindows) {
+        const shortTmp = 'C:\\cfa-tmp';
+        try {
+          if (!fs.existsSync(shortTmp)) {
+            fs.mkdirSync(shortTmp, { recursive: true });
+          }
+          baseTmpDir = shortTmp;
+        } catch (err) {
+          console.warn(`[Analyze] Could not create short temp dir ${shortTmp}, falling back to ${baseTmpDir}`);
+        }
+      }
+      
+      tmpDir = fs.mkdtempSync(path.join(baseTmpDir, 'cfa-'));
+      console.log(`[Analyze Timing] clone started - repo: ${repo.path} to ${tmpDir}`);
+      const cloneStart = performance.now();
+      // Use depth 500 for meaningful git history while keeping clone relatively fast
       // Add timeout (5 mins) and 10MB max buffer to prevent infinite hangs
-      await execFileAsync('git', ['clone', '--depth', '5000', repo.path, tmpDir], { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
-      console.log(`[Analyze] Clone completed`);
+      // Using --filter=blob:none to avoid downloading unnecessary blobs for large repositories
+      await execFileAsync('git', ['-c', 'core.longpaths=true', 'clone', '--depth', '500', '--filter=blob:none', repo.path, tmpDir], { timeout: 300000, maxBuffer: 10 * 1024 * 1024 });
+      const cloneElapsed = performance.now() - cloneStart;
+      console.log(`[Analyze Timing] clone completed - ${cloneElapsed.toFixed(1)}ms`);
       targetPath = tmpDir;
     } else if (repo.path.startsWith('https://')) {
       res.status(400).json({ message: 'Only github.com URLs are supported.' });
       return;
     }
 
-    console.log(`[Analyze] Analyzer started`);
+    console.log(`[Analyze Timing] analyzer started`);
+    const analyzerStart = performance.now();
     const result = analyzeRepository({ repositoryPath: targetPath });
-    console.log(`[Analyze] Analyzer completed. Found ${result.files.length} files.`);
+    const analyzerElapsed = performance.now() - analyzerStart;
+    console.log(`[Analyze Timing] analyzer completed - ${analyzerElapsed.toFixed(1)}ms (files: ${result.files.length})`);
 
     const summaryData = result.summary ?? { overallScore: result.overallScore ?? 0, filesAnalyzed: 0, highFrictionFiles: 0, mediumFrictionFiles: 0, lowFrictionFiles: 0, topHighFrictionModules: [] };
     
     const augmentedSummary = {
       ...summaryData,
       dependencies: result.dependencies ?? [],
-      coChanges: result.coChanges ?? []
+      coChanges: result.coChanges ?? [],
+      languages: result.languages ?? {}
     };
 
-    console.log(`[Analyze] Saving to database...`);
-    // Increased timeout to 2 minutes for large repositories
-    const createdAnalysis = await prisma.$transaction(async (tx) => {
-      const filePaths = (result.files || []).map(f => f.path);
+    console.log(`[Analyze Timing] database persistence started`);
+    const dbStart = performance.now();
+    const filePaths = (result.files || []).map(f => f.path);
 
-      if (filePaths.length > 0) {
-        await tx.file.createMany({
-          data: filePaths.map(path => ({
+    const tFilesStart = performance.now();
+    // 1. Fetch existing files in a single indexed query outside of the transaction
+    const existingDbFiles = await prisma.file.findMany({
+      where: { repositoryId: repo.id },
+      select: { id: true, path: true }
+    });
+    const fileIdMap = new Map<string, string>(existingDbFiles.map(f => [f.path, f.id]));
+
+    // 2. Identify and batch-insert any new files that do not exist yet
+    const newPaths = filePaths.filter(p => !fileIdMap.has(p));
+    if (newPaths.length > 0) {
+      const FILE_CHUNK_SIZE = 2000;
+      for (let i = 0; i < newPaths.length; i += FILE_CHUNK_SIZE) {
+        const chunk = newPaths.slice(i, i + FILE_CHUNK_SIZE);
+        await prisma.file.createMany({
+          data: chunk.map(path => ({
             repositoryId: repo.id,
             path
           })),
           skipDuplicates: true
         });
       }
-
-      const dbFiles = await tx.file.findMany({
-        where: {
+      for (let i = 0; i < newPaths.length; i += FILE_CHUNK_SIZE) {
+        const chunk = newPaths.slice(i, i + FILE_CHUNK_SIZE);
+        const newlyCreatedFiles = await prisma.file.findMany({
+          where: {
+            repositoryId: repo.id,
+            path: { in: chunk }
+          },
+          select: { id: true, path: true }
+        });
+        for (const f of newlyCreatedFiles) {
+          fileIdMap.set(f.path, f.id);
+        }
+      }
+    }
+    // 3. Persist Analysis and FileMetrics together in a lean transaction using batched createMany
+    const createdAnalysis = await prisma.$transaction(async (tx) => {
+      const analysis = await tx.analysis.create({
+        data: {
           repositoryId: repo.id,
-          path: { in: filePaths }
-        },
-        select: { id: true, path: true }
+          overallScore: result.overallScore ?? 0,
+          summary: augmentedSummary,
+          commitCount: result.repository?.commitCount ?? 0,
+          fileCount: result.repository?.fileCount ?? 0,
+        }
       });
 
-      const fileIdMap = new Map<string, string>();
-      for (const dbF of dbFiles) {
-        fileIdMap.set(dbF.path, dbF.id);
-      }
-
       const fileMetricsData = (result.files || []).map(file => ({
+        analysisId: analysis.id,
         fileId: fileIdMap.get(file.path)!,
         dependencyImpact: file.metrics.dependencyImpact,
         changeFrequency: file.metrics.changeFrequency,
@@ -354,25 +423,23 @@ app.post('/api/repositories/:id/analyze', requireAuth, async (req: Authenticated
         historicalEvidence: file.historicalEvidence
       }));
 
-      const analysis = await tx.analysis.create({
-        data: {
-          repositoryId: repo.id,
-          overallScore: result.overallScore ?? 0,
-          summary: augmentedSummary,
-          commitCount: result.repository?.commitCount ?? 0,
-          fileCount: result.repository?.fileCount ?? 0,
-          fileMetrics: {
-            create: fileMetricsData
-          }
-        }
-      });
+      const METRIC_CHUNK_SIZE = 1000;
+      for (let i = 0; i < fileMetricsData.length; i += METRIC_CHUNK_SIZE) {
+        const chunk = fileMetricsData.slice(i, i + METRIC_CHUNK_SIZE);
+        await tx.fileMetric.createMany({
+          data: chunk,
+          skipDuplicates: true
+        });
+      }
 
       return analysis;
-    }, { timeout: 120000 });
+    }, { timeout: 60000 });
     
-    console.log(`[Analyze] Database save completed. Analysis ID: ${createdAnalysis.id}`);
+    const dbElapsed = performance.now() - dbStart;
+    console.log(`[Analyze Timing] database persistence completed - ${dbElapsed.toFixed(1)}ms. Analysis ID: ${createdAnalysis.id}`);
     res.status(202).json({ analysisId: createdAnalysis.id, status: 'RUNNING', repositoryId: repo.id, score: createdAnalysis.overallScore });
-    console.log(`[Analyze] Response sent`);
+    const totalElapsed = performance.now() - reqStartTime;
+    console.log(`[Analyze Timing] response sent - total: ${totalElapsed.toFixed(1)}ms`);
   } catch (error) {
     console.error(`[Analyze] Error:`, error);
     const message = error instanceof Error ? error.message : 'Analysis failed.';
@@ -579,6 +646,6 @@ export const server = app;
 
 if (process.env.NODE_ENV !== 'test') {
   app.listen(config.port, () => {
-    console.log(`API listening on http://localhost:${config.port}`);
+    console.log(`API listening on port ${config.port}`);
   });
 }

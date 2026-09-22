@@ -1,9 +1,23 @@
-node_modules
-.next
-dist
+node_modules/
+
+.next/
+
+dist/
+
 .env
 .env.local
-coverage
+
+coverage/
+
 *.log
-.prisma
+
+.prisma/
+
 .DS_Store
+
+# TypeScript build artifacts
+*.tsbuildinfo
+# Generated parser build artifacts
+packages/analyzer/src/parsers/*.js
+packages/analyzer/src/parsers/*.js.map
+packages/analyzer/src/parsers/*.d.ts

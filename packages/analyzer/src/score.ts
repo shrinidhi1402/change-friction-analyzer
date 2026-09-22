@@ -64,7 +64,7 @@ export const calculateFileMetrics = ({
   changeCount: number;
   contributorCount: number;
   coChangedWith: string[];
-  history: GitCommitInfo[];
+  history: GitCommitInfo[] | Map<string, GitCommitInfo[]>;
   couplingWeight: number;
   maxMetrics: {
     dependencySum: number;

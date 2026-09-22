@@ -1,82 +1,74 @@
 import { Project, SyntaxKind, type SourceFile } from 'ts-morph';
-import { readdirSync } from 'node:fs';
 import path from 'node:path';
+import {
+  defaultParserRegistry,
+  shouldParseForAst,
+  getParserDiagnostics,
+  clearParserDiagnostics,
+  recordParserDiagnostic,
+  type ParserDiagnostic,
+} from './parsers/index.js';
 
-const ignoredDirs = new Set(['node_modules', '.git', 'dist', 'build', 'coverage', '.next', '.turbo', 'vendor']);
-const ignoredFiles = new Set(['package-lock.json', 'yarn.lock', 'pnpm-lock.yaml']);
-const sourceExtensions = new Set(['.js', '.jsx', '.ts', '.tsx']);
-
-const normalizePath = (filePath: string): string => filePath.replace(/\\/g, '/');
-
-const resolveLocalImport = (repoRoot: string, currentFile: string, specifier: string): string | null => {
-  if (!specifier.startsWith('.')) return null;
-  const absoluteCurrentFile = path.resolve(repoRoot, currentFile);
-  const absolute = path.resolve(path.dirname(absoluteCurrentFile), specifier);
-  const candidates = [absolute, `${absolute}.ts`, `${absolute}.tsx`, `${absolute}.js`, `${absolute}.jsx`, path.join(absolute, 'index.ts'), path.join(absolute, 'index.tsx'), path.join(absolute, 'index.js'), path.join(absolute, 'index.jsx')];
-
-  for (const candidate of candidates) {
-    try {
-      const normalized = normalizePath(path.relative(repoRoot, candidate));
-      if (normalized.startsWith('..')) continue;
-      let fileExists = false;
-      try {
-        fileExists = readdirSync(path.dirname(candidate), { withFileTypes: true }).some((entry) => entry.name === path.basename(candidate));
-      } catch {
-        // directory does not exist
-      }
-      
-      if (fileExists || candidate.endsWith('index.ts') || candidate.endsWith('index.tsx') || candidate.endsWith('index.js') || candidate.endsWith('index.jsx')) {
-        const targetPath = path.extname(candidate) ? candidate : undefined;
-        if (targetPath) {
-          return normalizePath(targetPath);
-        }
-      }
-    } catch {
-      // ignore unresolved imports
-    }
-  }
-
-  return null;
+export {
+  defaultParserRegistry,
+  shouldParseForAst,
+  getParserDiagnostics,
+  clearParserDiagnostics,
+  recordParserDiagnostic,
+  type ParserDiagnostic,
 };
+
+export const normalizePath = (filePath: string): string => filePath.replace(/\\/g, '/');
 
 export const detectSourceFiles = (repoPath: string): string[] => {
-  const results: string[] = [];
-
-  const walk = (currentPath: string): void => {
-    for (const entry of readdirSync(currentPath, { withFileTypes: true })) {
-      if (entry.isDirectory()) {
-        if (ignoredDirs.has(entry.name)) continue;
-        walk(path.join(currentPath, entry.name));
-        continue;
-      }
-
-      if (ignoredFiles.has(entry.name)) continue;
-      const ext = path.extname(entry.name).toLowerCase();
-      if (sourceExtensions.has(ext)) {
-        results.push(normalizePath(path.join(currentPath, entry.name)));
-      }
-    }
-  };
-
-  walk(repoPath);
-  return results.sort();
+  return defaultParserRegistry.detectSourceFiles(repoPath);
 };
 
-export const extractImports = (repoRoot: string, filePath: string, project?: Project): string[] => {
-  try {
-    const p = project ?? new Project({ compilerOptions: { allowJs: true } });
-    const fullPath = path.resolve(repoRoot, filePath);
-    const sourceFile = p.getSourceFile(fullPath) ?? p.addSourceFileAtPathIfExists(normalizePath(fullPath));
-    const dependencies = new Set<string>();
+export const detectLanguage = (filePath: string): string | null => {
+  return defaultParserRegistry.detectLanguage(filePath);
+};
 
+export const getLanguageStats = (repoRoot: string, sourceFiles?: string[]) => {
+  return defaultParserRegistry.getLanguageStats(repoRoot, sourceFiles);
+};
+
+export const getLanguageBreakdown = (repoRoot: string, sourceFiles?: string[]) => {
+  return defaultParserRegistry.getLanguageBreakdown(repoRoot, sourceFiles);
+};
+
+export const getFileLanguageInfo = (filePath: string) => {
+  return defaultParserRegistry.getFileLanguageInfo(filePath);
+};
+
+/**
+ * Legacy ts-morph helper kept strictly for backward compatibility when an explicit
+ * ts-morph Project instance is supplied by a caller.
+ */
+function extractWithTsMorphProject(repoRoot: string, filePath: string, project: Project): string[] {
+  const fullPath = path.resolve(repoRoot, filePath);
+  const normalizedFullPath = normalizePath(fullPath);
+  const relativePath = normalizePath(path.relative(repoRoot, fullPath));
+
+  if (!shouldParseForAst(relativePath)) {
+    return [];
+  }
+
+  let sourceFile: SourceFile | undefined;
+  try {
+    sourceFile = project.getSourceFile(fullPath) ?? project.getSourceFile(normalizedFullPath);
+    if (!sourceFile) {
+      sourceFile = project.addSourceFileAtPathIfExists(normalizedFullPath);
+    }
     if (!sourceFile) return [];
+
+    const dependencies = new Set<string>();
 
     for (const decl of sourceFile.getImportDeclarations()) {
       const moduleSpecifier = decl.getModuleSpecifierValue();
       if (!moduleSpecifier) continue;
       if (moduleSpecifier.startsWith('.')) {
-        const resolved = resolveLocalImport(repoRoot, filePath, moduleSpecifier);
-        if (resolved) dependencies.add(resolved);
+        const resolved = defaultParserRegistry.extractDependencies(repoRoot, filePath);
+        for (const r of resolved) dependencies.add(r);
       }
     }
 
@@ -84,8 +76,8 @@ export const extractImports = (repoRoot: string, filePath: string, project?: Pro
       const moduleSpecifier = decl.getModuleSpecifierValue();
       if (!moduleSpecifier) continue;
       if (moduleSpecifier.startsWith('.')) {
-        const resolved = resolveLocalImport(repoRoot, filePath, moduleSpecifier);
-        if (resolved) dependencies.add(resolved);
+        const resolved = defaultParserRegistry.extractDependencies(repoRoot, filePath);
+        for (const r of resolved) dependencies.add(r);
       }
     }
 
@@ -96,37 +88,46 @@ export const extractImports = (repoRoot: string, filePath: string, project?: Pro
         if (args.length > 0 && args[0].getKind() === SyntaxKind.StringLiteral) {
           const moduleSpecifier = (args[0] as any).getLiteralText();
           if (moduleSpecifier.startsWith('.')) {
-            const resolved = resolveLocalImport(repoRoot, filePath, moduleSpecifier);
-            if (resolved) dependencies.add(resolved);
+            const resolved = defaultParserRegistry.extractDependencies(repoRoot, filePath);
+            for (const r of resolved) dependencies.add(r);
           }
         }
       }
     }
 
     return [...dependencies].sort();
-  } catch {
+  } catch (err: any) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.warn(`[Parser] Skipping ${relativePath}: ${errorMessage}`);
+    return [];
+  }
+}
+
+/**
+ * Extracts dependencies for a file. Uses the language-independent Tree-sitter registry
+ * by default. If a ts-morph Project is explicitly provided, maintains public API compatibility.
+ */
+export const extractImports = (repoRoot: string, filePath: string, project?: Project): string[] => {
+  const fullPath = path.resolve(repoRoot, filePath);
+  const relativePath = normalizePath(path.relative(repoRoot, fullPath));
+
+  try {
+    if (project) {
+      return extractWithTsMorphProject(repoRoot, filePath, project);
+    }
+    return defaultParserRegistry.extractDependencies(repoRoot, filePath);
+  } catch (err: any) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    console.warn(`[Parser] Skipping ${relativePath}: ${errorMessage}`);
+    recordParserDiagnostic(relativePath, errorMessage);
     return [];
   }
 };
 
+/**
+ * Builds the repository dependency graph using the language-independent Tree-sitter registry.
+ * Maps absolute normalized file paths to arrays of absolute normalized dependency paths.
+ */
 export const buildDependencyGraph = (repoRoot: string, sourceFiles: string[]): Map<string, string[]> => {
-  const graph = new Map<string, string[]>();
-  const project = new Project({ compilerOptions: { allowJs: true } });
-
-  const sourceFilesSet = new Set(sourceFiles.map(f => normalizePath(f)));
-
-  // Add all files to the project first to optimize resolution
-  for (const filePath of sourceFiles) {
-    const fullPath = path.resolve(repoRoot, filePath);
-    project.addSourceFileAtPathIfExists(normalizePath(fullPath));
-  }
-
-  for (const filePath of sourceFiles) {
-    const normalizedFile = normalizePath(filePath);
-    const imports = extractImports(repoRoot, normalizedFile, project)
-      .filter(dep => sourceFilesSet.has(dep));
-    graph.set(normalizedFile, imports);
-  }
-
-  return graph;
+  return defaultParserRegistry.buildDependencyGraph(repoRoot, sourceFiles);
 };

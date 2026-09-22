@@ -28,7 +28,7 @@ vi.mock('node:fs', async (importOriginal) => {
   };
 });
 
-vi.mock('../../../packages/analyzer/src/index.js', () => {
+vi.mock('@change-friction/analyzer', () => {
   return {
     analyzeRepository: vi.fn().mockImplementation(() => {
       const files = Array.from({ length: 5000 }).map((_, i) => ({
@@ -178,13 +178,14 @@ describe('auth and authorization', () => {
       .post(`/api/repositories/${repoResponse.body.repository.id}/analyze`)
       .set('Authorization', `Bearer ${userResponse.body.token}`)
       .expect(202);
-
+    // Verify git clone was invoked with the local runner's parameters
     expect(child_process.execFile).toHaveBeenCalledWith(
       'git',
-      ['clone', '--depth', '5000', 'https://github.com/expressjs/express', '/tmp/mock-clone-dir'],
+      ['-c', 'core.longpaths=true', 'clone', '--depth', '500', '--filter=blob:none', 'https://github.com/expressjs/express', '/tmp/mock-clone-dir'],
       { timeout: 300000, maxBuffer: 10 * 1024 * 1024 },
       expect.any(Function)
     );
+
   }, 60000);
 
   it('cleans up temporary directory on clone failure', async () => {

@@ -2,16 +2,14 @@
   "name": "change-friction-analyzer",
   "private": true,
   "version": "0.1.0",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
     "dev:web": "npm -w apps/web run dev",
     "dev:api": "npm -w apps/api run dev",
+    "local:analyze": "tsx packages/local-runner/src/cli.ts",
     "build": "npm -w packages/shared run build && npm -w packages/analyzer run build && npm -w packages/database run build && npm -w apps/api run build && npm -w apps/web run build",
-    "test": "npm -w packages/analyzer run test && npm -w apps/api run test",
-    "lint": "npm -w apps/api run lint && npm -w apps/web run lint"
+    "test": "npm -w packages/analyzer run test && npm -w apps/api run test && npm -w packages/local-runner run test",
+    "lint": "npm -w apps/api run lint && npm -w apps/web run lint && npm -w packages/local-runner run lint"
   },
   "devDependencies": {
     "@types/node": "^20.14.12",

@@ -1,0 +1,20 @@
+{
+  "name": "@change-friction/local-runner",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/cli.ts",
+  "exports": { ".": { "default": "./src/cli.ts" } },
+  "scripts": {
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+    "dependencies": {
+      "@change-friction/analyzer": "*"
+    },
+  "devDependencies": {
+    "tsx": "^4.16.0",
+    "vitest": "^2.0.5",
+    "typescript": "^5.5.4"
+  }
+}
