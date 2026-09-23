@@ -10,12 +10,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "declaration": true,
-    "sourceMap": true,
-    "baseUrl": ".",
-    "paths": {
-      "@change-friction/shared": ["packages/shared/src/index.ts"],
-      "@change-friction/analyzer": ["packages/analyzer/src/index.ts"],
-      "@change-friction/database": ["packages/database/src/index.ts"]
-    }
+    "sourceMap": true
   }
 }
