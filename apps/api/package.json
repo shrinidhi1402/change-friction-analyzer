@@ -16,6 +16,10 @@
     "@change-friction/analyzer": "*",
     "@change-friction/database": "*",
     "@change-friction/shared": "*",
+    "@types/bcryptjs": "^2.4.1",
+    "@types/cors": "^2.8.5",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.2",
     "@types/node": "^20.14.12",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
@@ -25,10 +29,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@types/bcryptjs": "^2.4.1",
-    "@types/cors": "^2.8.5",
-    "@types/express": "^5.0.0",
-    "@types/jsonwebtoken": "^9.0.2",
     "@types/supertest": "^6.0.0",
     "supertest": "^7.0.0",
     "tsx": "^4.16.0",
